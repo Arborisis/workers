@@ -1,0 +1,17 @@
+{
+  "name": "arborisis-audio-analysis-orchestrator",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker orchestrating audio analysis pipeline via Queue",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240510.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "wrangler": "^3.55.0"
+  }
+}

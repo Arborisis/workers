@@ -1,0 +1,19 @@
+{
+  "name": "arborisis-audio-analyzer-container",
+  "version": "1.0.0",
+  "description": "Cloudflare Containers gateway for Arborisis Python audio analyzer",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.3.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260510.1",
+    "typescript": "^5.4.0",
+    "wrangler": "^4.15.0"
+  }
+}

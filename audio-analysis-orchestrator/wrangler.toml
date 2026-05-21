@@ -1,0 +1,19 @@
+name = "arborisis-audio-analysis-orchestrator"
+main = "src/index.ts"
+compatibility_date = "2026-05-10"
+account_id = "bc36459259b257fdbaf4252f06bcb690"
+
+[vars]
+# Fallback URL unique (utilisé seulement si ANALYZER_URLS n'est pas défini en secret)
+ANALYZER_URL = "https://arborisis.com/analyzer"
+
+# Pour 2+ VPS workers, utiliser wrangler secret put ANALYZER_URLS
+# avec une valeur du type : http://157.173.109.156,http://157.173.109.82
+# (Passer en HTTPS quand les certificats seront en place)
+
+[[queues.consumers]]
+queue = "audio-analysis-queue"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "audio-analysis-dlq"

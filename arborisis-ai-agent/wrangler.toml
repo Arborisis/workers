@@ -1,0 +1,15 @@
+name = "arborisis-ai-agent"
+main = "src/index.ts"
+compatibility_date = "2026-05-18"
+account_id = "bc36459259b257fdbaf4252f06bcb690"
+
+[vars]
+LARAVEL_API_URL = "https://arborisis.com/api"
+SITE_URL = "https://arborisis.com"
+AGENT_MODEL = "@cf/moonshotai/kimi-k2.6"
+
+# Secrets (do NOT commit these):
+# wrangler secret put BRAVE_SEARCH_API_KEY
+
+[ai]
+binding = "AI"

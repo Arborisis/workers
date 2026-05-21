@@ -1,0 +1,21 @@
+name = "arborisis-audio-analyzer-container"
+main = "src/index.ts"
+compatibility_date = "2026-05-10"
+account_id = "bc36459259b257fdbaf4252f06bcb690"
+
+[vars]
+ANALYZER_POOL_SIZE = "3"
+
+[[containers]]
+class_name = "AudioAnalyzerContainer"
+image = "../../services/audio-analyzer/Dockerfile"
+max_instances = 6
+instance_type = "standard-3"
+
+[[durable_objects.bindings]]
+name = "AUDIO_ANALYZER_CONTAINER"
+class_name = "AudioAnalyzerContainer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AudioAnalyzerContainer"]
