@@ -4,12 +4,12 @@ compatibility_date = "2026-05-10"
 account_id = "bc36459259b257fdbaf4252f06bcb690"
 
 [vars]
-# Fallback URL unique (utilisé seulement si ANALYZER_URLS n'est pas défini en secret)
-ANALYZER_URL = "https://arborisis.com/analyzer"
+# Fallback URL - Mettre à jour après migration des audio services
+# Utiliser wrangler secret put ANALYZER_URLS pour configurer l'URL finale
+ANALYZER_URL = "https://arborisis.laravel.cloud/analyzer"
 
-# Pour 2+ VPS workers, utiliser wrangler secret put ANALYZER_URLS
-# avec une valeur du type : http://157.173.109.156,http://157.173.109.82
-# (Passer en HTTPS quand les certificats seront en place)
+# Exemple pour Railway/Render : https://audio-services-xxxxx.up.railway.app
+# Utiliser wrangler secret put ANALYZER_URLS avec l'URL définitive
 
 [[queues.consumers]]
 queue = "audio-analysis-queue"
