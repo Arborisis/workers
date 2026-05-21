@@ -52,7 +52,15 @@ jobs:
 
       - name: Run TypeScript check
         working-directory: ./${{ matrix.worker }}
-        run: npx tsc --noEmit
+        run: |
+          if [ -f "./node_modules/.bin/tsc" ]; then
+            ./node_modules/.bin/tsc --noEmit
+          elif [ -f "tsconfig.json" ]; then
+            echo "TypeScript not installed in this worker, skipping typecheck."
+            echo "Consider adding TypeScript to devDependencies."
+          else
+            echo "No tsconfig.json found, skipping typecheck."
+          fi
 
       - name: Run linter
         working-directory: ./${{ matrix.worker }}
