@@ -5,8 +5,8 @@ account_id = "bc36459259b257fdbaf4252f06bcb690"
 
 [vars]
 # Laravel Cloud URL - Mettre à jour après la création de l'app sur cloud.laravel.com
-LARAVEL_API_URL = "https://arborisis.laravel.cloud/api"
-SITE_URL = "https://arborisis.laravel.cloud"
+LARAVEL_API_URL = "https://arborisis.com/api"
+SITE_URL = "https://arborisis.com"
 AGENT_MODEL = "@cf/moonshotai/kimi-k2.6"
 
 # Secrets (do NOT commit these):

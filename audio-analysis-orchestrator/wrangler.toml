@@ -6,7 +6,7 @@ account_id = "bc36459259b257fdbaf4252f06bcb690"
 [vars]
 # Fallback URL - Mettre à jour après migration des audio services
 # Utiliser wrangler secret put ANALYZER_URLS pour configurer l'URL finale
-ANALYZER_URL = "https://arborisis.laravel.cloud/analyzer"
+ANALYZER_URL = "https://arborisis.com/analyzer"
 
 # Exemple pour Railway/Render : https://audio-services-xxxxx.up.railway.app
 # Utiliser wrangler secret put ANALYZER_URLS avec l'URL définitive

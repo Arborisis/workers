@@ -8,7 +8,7 @@ ANALYZER_POOL_SIZE = "3"
 
 [[containers]]
 class_name = "AudioAnalyzerContainer"
-image = "../../services/audio-analyzer/Dockerfile"
+image = "../../audio-services/audio-analyzer/Dockerfile"
 max_instances = 6
 instance_type = "standard-3"
 
