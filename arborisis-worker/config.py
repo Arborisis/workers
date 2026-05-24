@@ -1,5 +1,6 @@
 import os
 import json
+import platform
 import psutil
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict
@@ -19,6 +20,8 @@ class WorkerCapabilities:
     use_light_features: bool
     spectrogram_quality: str  # 'low', 'medium', 'high'
     processing_timeout: int
+    has_mps: bool = False  # Metal Performance Shaders (Mac ARM)
+    mps_available: bool = False
     
 
 class AdaptiveConfig:
@@ -30,7 +33,7 @@ class AdaptiveConfig:
         memory = psutil.virtual_memory()
         memory_gb = round(memory.total / (1024**3))
         
-        # Détection GPU
+        # Détection GPU (NVIDIA)
         has_gpu = False
         gpu_model = None
         try:
@@ -42,21 +45,50 @@ class AdaptiveConfig:
                 gpu_model = result.stdout.strip().split('\n')[0]
         except:
             pass
-            
+        
+        # Détection MPS (Metal Performance Shaders) pour Mac ARM (M1, M2, etc.)
+        has_mps = False
+        mps_available = False
+        
+        # Vérifier si on est sur Mac ARM
+        is_mac_arm = (
+            platform.system() == 'Darwin' and 
+            platform.machine() in ['arm64', 'aarch64']
+        )
+        
+        if is_mac_arm:
+            has_mps = True
+            # Vérifier si PyTorch avec MPS est disponible
+            try:
+                import torch
+                if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+                    mps_available = True
+                    gpu_model = f"Apple Silicon MPS ({platform.machine()})"
+            except ImportError:
+                # PyTorch n'est pas installé, MPS existe mais n'est pas utilisable
+                pass
+            except Exception:
+                pass
+        
         # Configuration adaptative basée sur les specs
+        # MPS compte comme GPU pour le deep learning
+        can_run_deep_learning = (has_gpu or mps_available) and memory_gb >= 8
+        
         capabilities = WorkerCapabilities(
             cpu_cores=cpu_count,
             memory_gb=memory_gb,
             has_gpu=has_gpu,
             gpu_model=gpu_model,
-            os=os.name,
+            os=f"{platform.system()} {platform.release()}",
             can_run_birdnet=memory_gb >= 4,  # BirdNET nécessite au moins 4GB
-            can_run_deep_learning=has_gpu and memory_gb >= 8,
+            can_run_deep_learning=can_run_deep_learning,
             max_file_size_mb=min(500, max(50, memory_gb * 10)),
             max_concurrent_jobs=max(1, min(4, cpu_count // 2)),
             use_light_features=memory_gb < 8,  # Features légères si < 8GB
             spectrogram_quality='high' if memory_gb >= 16 else ('medium' if memory_gb >= 8 else 'low'),
-            processing_timeout=1800 if memory_gb >= 8 else 600  # 30min ou 10min
+            processing_timeout=1800 if memory_gb >= 8 else 600,  # 30min ou 10min
+            has_mps=has_mps,
+            mps_available=mps_available
         )
         
         return capabilities

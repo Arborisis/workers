@@ -6,6 +6,8 @@ Worker client pour le traitement audio distribué de la plateforme Arborisis.
 
 - **Analyse audio complète** : BirdNET (classification d'oiseaux), features librosa, spectrogrammes
 - **Adaptation automatique** : Détecte les specs de la machine et ajuste la complexité
+- **Mise à jour automatique** : Vérifie et installe les mises à jour automatiquement
+- **Compatibilité Mac M1/M2/M3** : Accélération MPS (Metal Performance Shaders) pour Apple Silicon
 - **Gestion R2** : Téléchargement/Upload automatique depuis/vers Cloudflare R2
 - **Connexion sécurisée** : Tunnel Cloudflare pour les machines domestiques
 - **Monitoring** : Heartbeat, statistiques de performance
@@ -95,7 +97,37 @@ Le worker détecte automatiquement vos capacités :
 | **RAM 4-8GB** | Features standard, BirdNET basique |
 | **RAM 8-16GB** | Features complètes, BirdNET avancé |
 | **RAM > 16GB** | Tout activé, qualité maximale |
-| **GPU détecté** | Accélération deep learning |
+| **GPU détecté** | Accélération deep learning (CUDA) |
+| **Mac M1/M2/M3** | Accélération MPS (Metal Performance Shaders) |
+
+## Mise à jour automatique
+
+Le worker vérifie automatiquement les mises à jour toutes les heures (configurable) :
+
+```bash
+# Configurer l'intervalle de vérification (en heures, défaut: 1)
+export UPDATE_CHECK_INTERVAL_HOURS=1
+
+# Désactiver les mises à jour automatiques
+export UPDATE_CHECK_INTERVAL_HOURS=0
+```
+
+Le worker télécharge, vérifie (checksum SHA256), sauvegarde, applique la mise à jour et redémarre automatiquement. Les backups sont conservées dans `.backup/`.
+
+## Compatibilité Apple Silicon (M1/M2/M3)
+
+Sur Mac avec puce Apple Silicon, le worker détecte automatiquement MPS (Metal Performance Shaders) :
+
+```bash
+# Installer PyTorch avec support MPS
+pip install torch torchvision torchaudio
+
+# Le worker détecte automatiquement MPS et l'utilise pour :
+# - L'inférence Gemma 4 (accélération GPU via MPS)
+# - Les capacités deep learning
+```
+
+**Note** : MPS est optionnel. Sans PyTorch installé, le worker fonctionne en mode CPU.
 
 ## Monitoring
 

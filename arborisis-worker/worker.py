@@ -33,6 +33,7 @@ from infrastructure import (
     FatalError
 )
 from cluster_tasks import ClusterTaskManager, ClusterTask
+from auto_updater import AutoUpdater, UpdateInfo
 
 # Configuration du logging
 logging.basicConfig(
@@ -70,9 +71,19 @@ class ArborisisWorker:
         self.health_server = HealthCheckServer(port=int(os.getenv('WORKER_PORT', 8080)))
         self.cluster_manager = ClusterTaskManager(self.api)
         
+        # Auto-updater
+        self.auto_updater = AutoUpdater(
+            api_url=self.api_url,
+            token=self.token,
+            current_version="2.0.0",
+            check_interval_hours=int(os.getenv('UPDATE_CHECK_INTERVAL_HOURS', '1')),
+            on_update_ready=self._on_update_ready
+        )
+        
         self.temp_dir = tempfile.mkdtemp(prefix="arborisis_worker_")
         self.active_jobs: Dict[int, JobContext] = {}
         self.cluster_tasks: Dict[int, ClusterTask] = {}
+        self._pending_update: Optional[UpdateInfo] = None
         
         # Gestion des signaux
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -87,6 +98,14 @@ class ArborisisWorker:
         logger.info(f"Received signal {signum}, shutting down gracefully...")
         self.shutdown_requested = True
         self.running = False
+    
+    def _on_update_ready(self, update_info: UpdateInfo) -> None:
+        """Callback appelé quand une mise à jour est disponible."""
+        logger.info(f"Update ready: {update_info.version}")
+        self._pending_update = update_info
+        
+        if update_info.required:
+            logger.warning("Required update available - will apply after current jobs")
     
     def get_system_info(self) -> Dict[str, Any]:
         """Récupère les informations système."""
@@ -318,6 +337,9 @@ class ArborisisWorker:
         self.health_server.stats = self.stats
         self.health_server.start()
         
+        # Démarrer l'auto-updater
+        self.auto_updater.start()
+        
         # Enregistrement
         if not self.worker_id:
             if not self.register():
@@ -353,6 +375,13 @@ class ArborisisWorker:
                         )
                         thread.start()
                 
+                # Vérifier si une mise à jour est en attente et peut être appliquée
+                if self._pending_update and len(self.active_jobs) == 0 and not self.cluster_manager.current_task:
+                    logger.info("No active jobs, applying pending update...")
+                    self.auto_updater.apply_update(self._pending_update)
+                    # Si apply_update réussit, le worker redémarre et on ne revient pas ici
+                    self._pending_update = None
+                
                 # Attendre avant le prochain cycle
                 time.sleep(30)
                 
@@ -367,6 +396,10 @@ class ArborisisWorker:
     def _shutdown(self) -> None:
         """Arrêt gracieux."""
         logger.info("Shutting down gracefully...")
+        
+        # Arrêter l'auto-updater
+        if hasattr(self, 'auto_updater'):
+            self.auto_updater.stop()
         
         # Attendre que les jobs en cours se terminent (max 60s)
         if self.active_jobs:

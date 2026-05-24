@@ -51,11 +51,13 @@ class ClusterTaskManager:
             }
             logger.info(f"Gemma 4 model detected at {gemma_path}")
         
-        # Vérifier GPU
+        # Vérifier GPU (NVIDIA)
+        gpu_available = False
         try:
             import subprocess
             result = subprocess.run(['nvidia-smi'], capture_output=True)
             if result.returncode == 0:
+                gpu_available = True
                 models['gpu_available'] = True
                 # Si GPU dispo, Gemma 4 GPU aussi
                 if 'gemma-4' in models:
@@ -65,6 +67,32 @@ class ClusterTaskManager:
                         'gpu': True,
                     }
         except:
+            pass
+        
+        # Vérifier MPS (Metal Performance Shaders) pour Mac ARM
+        mps_available = False
+        try:
+            import platform
+            if platform.system() == 'Darwin' and platform.machine() in ['arm64', 'aarch64']:
+                import torch
+                if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+                    mps_available = True
+                    models['mps_available'] = True
+                    logger.info("MPS (Metal Performance Shaders) detected on Apple Silicon")
+                    # Si MPS dispo, Gemma 4 MPS aussi
+                    if 'gemma-4' in models:
+                        models['gemma-4-mps'] = {
+                            'path': gemma_path,
+                            'type': 'local',
+                            'gpu': True,  # MPS compte comme accélération GPU
+                            'mps': True,
+                        }
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"MPS detection error: {e}")
+        
+        if not gpu_available and not mps_available:
             models['gpu_available'] = False
         
         # BirdNET est toujours disponible
@@ -103,7 +131,7 @@ class ClusterTaskManager:
         try:
             logger.info(f"Executing cluster task {task.id} for model {task.model}")
             
-            if task.model == 'gemma-4' or task.model == 'gemma-4-gpu':
+            if task.model == 'gemma-4' or task.model == 'gemma-4-gpu' or task.model == 'gemma-4-mps':
                 result = self._execute_gemma(task)
             elif task.model == 'gemma-4-mini':
                 result = self._execute_gemma(task)
@@ -152,6 +180,9 @@ class ClusterTaskManager:
         # Utiliser llama.cpp ou autre backend
         model_path = self.supported_models.get('gemma-4', {}).get('path', '/models/gemma-4')
         
+        # Vérifier si MPS est disponible pour ce modèle
+        use_mps = task.model == 'gemma-4-mps' and self.supported_models.get('mps_available', False)
+        
         # Créer un fichier temporaire pour le prompt
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
             f.write(prompt)
@@ -168,7 +199,16 @@ class ClusterTaskManager:
                 '--json',
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            # Ajouter les flags GPU/MPS si nécessaire
+            if use_mps:
+                cmd.extend(['--n-gpu-layers', '999'])
+                # Définir la variable d'environnement pour MPS
+                env = os.environ.copy()
+                env['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+            else:
+                env = None
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=env)
             
             if result.returncode != 0:
                 raise Exception(f"Gemma 4 inference failed: {result.stderr}")
@@ -235,8 +275,10 @@ class ClusterTaskManager:
         return {
             'models': list(self.supported_models.keys()),
             'gpu_available': self.supported_models.get('gpu_available', False),
+            'mps_available': self.supported_models.get('mps_available', False),
             'can_run_gemma_4': 'gemma-4' in self.supported_models,
             'can_run_gemma_4_gpu': 'gemma-4-gpu' in self.supported_models,
+            'can_run_gemma_4_mps': 'gemma-4-mps' in self.supported_models,
             'can_run_gemma_4_mini': 'gemma-4-mini' in self.supported_models,
             'can_run_birdnet_cluster': 'birdnet-cluster' in self.supported_models,
         }
