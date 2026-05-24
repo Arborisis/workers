@@ -33,6 +33,7 @@ from infrastructure import (
     FatalError
 )
 from cluster_tasks import ClusterTaskManager, ClusterTask
+from model_manager import get_model_manager
 from auto_updater import AutoUpdater, UpdateInfo
 
 # Configuration du logging
@@ -70,6 +71,12 @@ class ArborisisWorker:
         self.stats = WorkerStats()
         self.health_server = HealthCheckServer(port=int(os.getenv('WORKER_PORT', 8080)))
         self.cluster_manager = ClusterTaskManager(self.api)
+        
+        # Model Manager pour les modèles IA (téléchargement background)
+        self.model_manager = get_model_manager(
+            models_dir=os.getenv('MODELS_DIR', './models'),
+            auto_install_gpu=os.getenv('INSTALL_GPU_DRIVERS', 'true').lower() == 'true'
+        )
         
         # Auto-updater
         self.auto_updater = AutoUpdater(

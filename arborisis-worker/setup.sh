@@ -49,6 +49,21 @@ echo "📁 Répertoire d'installation: $INSTALL_DIR"
 # Télécharger les fichiers nécessaires
 echo "📥 Téléchargement des fichiers..."
 
+# Détection GPU
+GPU_FLAGS=""
+if command -v nvidia-smi &> /dev/null; then
+    echo "✅ NVIDIA GPU detected: $(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
+    GPU_FLAGS="
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility"
+    echo "🎮 GPU support enabled"
+else
+    echo "⚠️  No GPU detected - will run in CPU mode"
+    echo "   To enable GPU, install NVIDIA drivers and Docker toolkit"
+fi
+
 # Créer le docker-compose.yml
 cat > docker-compose.yml << EOF
 services:
@@ -59,13 +74,17 @@ services:
       - WORKER_TOKEN=${WORKER_TOKEN}
       - API_URL=${API_URL}
       - WORKER_NAME=$(hostname)
+      - MODELS_DIR=/models
+      - DOWNLOAD_MODELS=gemma-4,gemma-4-mini
+      - INSTALL_GPU_DRIVERS=true
       - R2_ENDPOINT=${R2_ENDPOINT:-}
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
       - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
-      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}${GPU_FLAGS}
     volumes:
       - ./data:/tmp/worker
       - ./logs:/app/logs
+      - ./models:/models
     logging:
       driver: json-file
       options:
@@ -115,9 +134,18 @@ echo "  RAM: $(free -h | awk '/^Mem:/ {print $2}')"
 
 if command -v nvidia-smi &> /dev/null; then
     echo "  GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
+    echo "  VRAM: $(nvidia-smi --query-gpu=memory.total --format=csv,noheader | head -1)"
+    echo "  Driver: $(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)"
 else
-    echo "  GPU: Non détecté"
+    echo "  GPU: Non détecté (mode CPU)"
 fi
+
+echo ""
+echo "🤖 Modèles IA qui seront téléchargés:"
+echo "  - Gemma 4 (4GB) - Modèle principal"
+echo "  - Gemma 4 Mini (2.5GB) - Version légère"
+echo ""
+echo "Les modèles seront téléchargés automatiquement au démarrage."
 
 echo ""
 echo "Pour plus d'informations: https://docs.arborisis.com/workers"

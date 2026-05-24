@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from infrastructure import RobustAPIClient, RetryableError, FatalError
+from model_manager import get_model_manager
 
 logger = logging.getLogger('arborisis-worker')
 
@@ -35,41 +36,45 @@ class ClusterTaskManager:
     def __init__(self, api_client: RobustAPIClient):
         self.api = api_client
         self.current_task: Optional[ClusterTask] = None
+        self.model_manager = get_model_manager()
         self.supported_models = self._detect_available_models()
         
     def _detect_available_models(self) -> Dict[str, Any]:
         """Détecte les modèles IA disponibles sur cette machine."""
         models = {}
         
-        # Vérifier Gemma 4
-        gemma_path = os.getenv('GEMMA_MODEL_PATH', '/models/gemma-4')
-        if os.path.exists(gemma_path):
+        # Utiliser le ModelManager pour détecter les modèles
+        model_capabilities = self.model_manager.get_capabilities()
+        
+        # Vérifier Gemma 4 via ModelManager
+        if model_capabilities['can_run_gemma_4']:
             models['gemma-4'] = {
-                'path': gemma_path,
+                'path': str(self.model_manager.get_model_path('gemma-4')),
                 'type': 'local',
                 'gpu': False,
             }
-            logger.info(f"Gemma 4 model detected at {gemma_path}")
+            logger.info("Gemma 4 model detected via ModelManager")
         
-        # Vérifier GPU (NVIDIA)
-        gpu_available = False
-        try:
-            import subprocess
-            result = subprocess.run(['nvidia-smi'], capture_output=True)
-            if result.returncode == 0:
-                gpu_available = True
-                models['gpu_available'] = True
-                # Si GPU dispo, Gemma 4 GPU aussi
-                if 'gemma-4' in models:
-                    models['gemma-4-gpu'] = {
-                        'path': gemma_path,
-                        'type': 'local',
-                        'gpu': True,
-                    }
-        except:
-            pass
+        if model_capabilities['can_run_gemma_4_mini']:
+            models['gemma-4-mini'] = {
+                'path': str(self.model_manager.get_model_path('gemma-4-mini')),
+                'type': 'local',
+                'gpu': False,
+            }
+            logger.info("Gemma 4 Mini model detected via ModelManager")
         
-        # Vérifier MPS (Metal Performance Shaders) pour Mac ARM
+        # GPU via ModelManager
+        gpu_info = self.model_manager.gpu_manager.detect_gpu()
+        if gpu_info['has_nvidia'] and model_capabilities['can_run_gemma_4']:
+            models['gpu_available'] = True
+            models['gemma-4-gpu'] = {
+                'path': str(self.model_manager.get_model_path('gemma-4')),
+                'type': 'local',
+                'gpu': True,
+            }
+            logger.info(f"GPU NVIDIA detected: {gpu_info['gpus'][0]['name']}")
+        
+        # MPS (Metal Performance Shaders) pour Mac ARM
         mps_available = False
         try:
             import platform
@@ -79,12 +84,11 @@ class ClusterTaskManager:
                     mps_available = True
                     models['mps_available'] = True
                     logger.info("MPS (Metal Performance Shaders) detected on Apple Silicon")
-                    # Si MPS dispo, Gemma 4 MPS aussi
-                    if 'gemma-4' in models:
+                    if model_capabilities['can_run_gemma_4']:
                         models['gemma-4-mps'] = {
-                            'path': gemma_path,
+                            'path': str(self.model_manager.get_model_path('gemma-4')),
                             'type': 'local',
-                            'gpu': True,  # MPS compte comme accélération GPU
+                            'gpu': True,
                             'mps': True,
                         }
         except ImportError:
@@ -92,7 +96,7 @@ class ClusterTaskManager:
         except Exception as e:
             logger.debug(f"MPS detection error: {e}")
         
-        if not gpu_available and not mps_available:
+        if not models.get('gpu_available') and not mps_available:
             models['gpu_available'] = False
         
         # BirdNET est toujours disponible

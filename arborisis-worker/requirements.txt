@@ -14,5 +14,11 @@ psutil>=5.9.0
 python-dotenv>=1.0.0
 httpx>=0.27.0
 structlog>=24.1.0
+
+# Dépendances IA / LLM
+llama-cpp-python>=0.2.90
+# Note: Pour GPU NVIDIA, installer avec:
+# CMAKE_ARGS="-DLLAMA_CUDA=on" pip install llama-cpp-python --no-cache-dir
+
 # Optionnel - pour MPS (Metal Performance Shaders) sur Mac ARM
 # torch>=2.0.0; platform_system=="Darwin" and platform_machine=="arm64"

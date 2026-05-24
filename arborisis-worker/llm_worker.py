@@ -16,6 +16,8 @@ from datetime import datetime
 import requests
 from dotenv import load_dotenv
 
+from model_manager import get_model_manager, GPUDriverManager
+
 # Configuration du logging
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +46,12 @@ class LlamaInference:
             from llama_cpp import Llama
             
             logger.info(f"Chargement du modèle: {model_path}")
+            
+            # Détecter si GPU est disponible et optimiser
+            if n_gpu_layers == -1:
+                gpu_manager = GPUDriverManager()
+                n_gpu_layers = gpu_manager.get_optimal_gpu_layers(8.0)  # 8GB par défaut
+                logger.info(f"GPU layers auto-configured: {n_gpu_layers}")
             
             self.model = Llama(
                 model_path=model_path,
@@ -99,7 +107,7 @@ class LlamaInference:
 
 
 class LlmWorker:
-    """Worker LLM pour le cluster distribué."""
+    """Worker LLM pour le cluster distribué avec gestion automatique des modèles."""
     
     def __init__(self):
         self.token = os.getenv('WORKER_TOKEN')
@@ -117,37 +125,53 @@ class LlmWorker:
         self.running = True
         self.inference_engine = LlamaInference()
         self.current_model = None
+        
+        # Initialiser le ModelManager (télécharge les modèles en background)
+        logger.info("=== Initializing Model Manager ===")
+        self.model_manager = get_model_manager(
+            models_dir=os.getenv('MODELS_DIR', './models'),
+            auto_install_gpu=os.getenv('INSTALL_GPU_DRIVERS', 'true').lower() == 'true'
+        )
+        
+        # Attendre un peu que les téléchargements démarrent
+        time.sleep(2)
+        
+        # Détecter les capacités
         self.capabilities = self._detect_capabilities()
         
         logger.info(f"=== Arborisis LLM Worker ===")
         logger.info(f"Capabilities: {json.dumps(self.capabilities, indent=2)}")
     
     def _detect_capabilities(self) -> List[str]:
-        """Détecte les modèles disponibles."""
+        """Détecte les modèles disponibles avec le ModelManager."""
         capabilities = []
         
-        # Vérifier les modèles disponibles
-        models_dir = os.getenv('MODELS_DIR', './models')
+        # Utiliser le ModelManager pour vérifier les modèles
+        available_models = self.model_manager.get_available_models()
         
-        if os.path.exists(os.path.join(models_dir, 'sylve.gguf')):
-            capabilities.append('sylve')
+        if 'gemma-4' in available_models:
+            capabilities.append('gemma-4')
+            capabilities.append('sylve')  # Alias
         
-        if os.path.exists(os.path.join(models_dir, 'sylve-mini.gguf')):
-            capabilities.append('sylve-mini')
+        if 'gemma-4-mini' in available_models:
+            capabilities.append('gemma-4-mini')
+            capabilities.append('sylve-mini')  # Alias
         
-        # Vérifier GPU
-        try:
-            import subprocess
-            result = subprocess.run(['nvidia-smi'], capture_output=True)
-            if result.returncode == 0:
-                capabilities.append('sylve-gpu')
-                logger.info("GPU NVIDIA détecté")
-        except:
-            pass
+        # Vérifier GPU via le ModelManager
+        gpu_info = self.model_manager.gpu_manager.detect_gpu()
+        if gpu_info['has_nvidia'] and 'gemma-4' in available_models:
+            capabilities.append('gemma-4-gpu')
+            capabilities.append('sylve-gpu')  # Alias
+            logger.info(f"GPU NVIDIA détecté: {gpu_info['gpus'][0]['name']}")
+        
+        # Si des modèles sont en cours de téléchargement
+        downloading = self.model_manager.get_capabilities()['downloading']
+        if downloading:
+            logger.info(f"Models downloading in background: {', '.join(downloading)}")
         
         if not capabilities:
-            logger.warning("Aucun modèle trouvé dans ./models/")
-            logger.info("Téléchargez un modèle GGUF dans ./models/ pour commencer")
+            logger.warning("Aucun modèle prêt. Les modèles sont en cours de téléchargement en background.")
+            logger.info("Le worker traitera les jobs dès que les modèles seront disponibles.")
         
         return capabilities
     
@@ -218,7 +242,7 @@ class LlmWorker:
             return False
     
     def process_job(self, job: Dict) -> None:
-        """Traite un job d'inférence LLM."""
+        """Traite un job d'inférence LLM avec gestion automatique des modèles."""
         job_id = job['id']
         model_slug = job['model']
         prompt = job['prompt']
@@ -229,29 +253,47 @@ class LlmWorker:
         start_time = time.time()
         
         try:
-            # Charger le modèle si nécessaire
-            models_dir = os.getenv('MODELS_DIR', './models')
-            
-            model_paths = {
-                'gemma-4': os.path.join(models_dir, 'gemma-4.gguf'),
-                'gemma-4-mini': os.path.join(models_dir, 'gemma-4-mini.gguf'),
-                'gemma-4-gpu': os.path.join(models_dir, 'gemma-4.gguf'),
+            # Mapper les slugs aux modèles connus
+            model_slug_map = {
+                'sylve': 'gemma-4',
+                'sylve-mini': 'gemma-4-mini',
+                'sylve-gpu': 'gemma-4-gpu',
+                'gemma-4': 'gemma-4',
+                'gemma-4-mini': 'gemma-4-mini',
+                'gemma-4-gpu': 'gemma-4-gpu',
             }
             
-            model_path = model_paths.get(model_slug)
+            canonical_slug = model_slug_map.get(model_slug, model_slug)
             
-            if not model_path or not os.path.exists(model_path):
-                raise Exception(f"Modèle {model_slug} non trouvé")
+            # Vérifier si le modèle est prêt (téléchargé)
+            if not self.model_manager.is_model_ready(canonical_slug):
+                logger.info(f"Model {canonical_slug} not ready, waiting for download...")
+                
+                # Attendre le téléchargement (timeout: 5 minutes)
+                if not self.model_manager.wait_for_model(canonical_slug, timeout=300):
+                    raise Exception(f"Modèle {model_slug} non disponible après attente du téléchargement")
             
-            # Déterminer le nombre de layers GPU
-            n_gpu_layers = -1 if model_slug == 'sylve-gpu' else 0
+            # Récupérer le chemin du modèle
+            model_path = self.model_manager.get_model_path(canonical_slug)
+            
+            if not model_path:
+                raise Exception(f"Modèle {model_slug} non trouvé après téléchargement")
+            
+            # Déterminer le nombre de layers GPU optimal
+            n_gpu_layers = self.model_manager.get_optimal_gpu_layers(canonical_slug)
+            
+            # Forcer GPU si demandé explicitement
+            if model_slug in ['sylve-gpu', 'gemma-4-gpu']:
+                n_gpu_layers = -1  # Tout sur GPU
+            
+            logger.info(f"Using {n_gpu_layers} GPU layers for {model_slug}")
             
             # Charger si pas déjà chargé ou si différent
             if not self.inference_engine.is_loaded or \
-               self.inference_engine.model_path != model_path or \
-               (model_slug == 'sylve-gpu' and n_gpu_layers == 0):
+               self.inference_engine.model_path != str(model_path) or \
+               (model_slug in ['sylve-gpu', 'gemma-4-gpu'] and n_gpu_layers == 0):
                 
-                if not self.inference_engine.load_model(model_path, n_gpu_layers):
+                if not self.inference_engine.load_model(str(model_path), n_gpu_layers):
                     raise Exception("Impossible de charger le modèle")
             
             # Exécuter l'inférence

@@ -1,9 +1,12 @@
-# Arborisis Audio Worker
+# Arborisis AI/LLM Worker
 
-Worker client pour le traitement audio distribué de la plateforme Arborisis.
+Worker client pour le traitement audio distribué **et l'inférence IA/LLM** de la plateforme Arborisis.
 
 ## Fonctionnalités
 
+- **🤖 Inférence LLM** : Gemma 4, Gemma 4 Mini avec llama.cpp
+- **📥 Téléchargement automatique** : Les modèles IA se téléchargent en background au démarrage
+- **🎮 GPU automatique** : Détection et installation des drivers NVIDIA dans Docker
 - **Analyse audio complète** : BirdNET (classification d'oiseaux), features librosa, spectrogrammes
 - **Adaptation automatique** : Détecte les specs de la machine et ajuste la complexité
 - **Mise à jour automatique** : Vérifie et installe les mises à jour automatiquement
@@ -87,6 +90,63 @@ WORKER_NAME=Ma Machine
 WORKER_PORT=8080
 ```
 
+## Modèles IA / LLM
+
+Le worker télécharge automatiquement les modèles de langage en **background** au démarrage :
+
+| Modèle | Taille | RAM requise | GPU |
+|--------|--------|-------------|-----|
+| **Gemma 4** | ~4GB | 8GB | Optionnel |
+| **Gemma 4 Mini** | ~2.5GB | 4GB | Non |
+
+### Configuration des modèles
+
+```bash
+# Choisir les modèles à télécharger (défaut: gemma-4,gemma-4-mini)
+export DOWNLOAD_MODELS=gemma-4,gemma-4-mini
+
+# Répertoire de stockage des modèles
+export MODELS_DIR=./models
+
+# Désactiver l'installation auto des drivers GPU
+export INSTALL_GPU_DRIVERS=false
+```
+
+Les modèles sont téléchargés avec **reprise automatique** en cas d'interruption et **vérification checksum**.
+
+## Support GPU
+
+### NVIDIA (CUDA)
+
+Le worker détecte et utilise automatiquement les GPU NVIDIA. Si les drivers ne sont pas installés dans le conteneur Docker :
+
+```bash
+# Lancer avec support GPU
+export INSTALL_GPU_DRIVERS=true
+
+# Ou avec Docker
+export NVIDIA_VISIBLE_DEVICES=all
+export NVIDIA_DRIVER_CAPABILITIES=compute,utility
+```
+
+### Docker avec GPU
+
+```bash
+# Lancer le worker avec accès GPU
+docker run -d --gpus all \
+  -e WORKER_TOKEN=xxx \
+  -e INSTALL_GPU_DRIVERS=true \
+  arborisis/audio-worker:latest
+```
+
+### Apple Silicon (M1/M2/M3)
+
+MPS est détecté automatiquement si PyTorch est installé :
+
+```bash
+pip install torch
+```
+
 ## Adaptation automatique
 
 Le worker détecte automatiquement vos capacités :
@@ -94,10 +154,10 @@ Le worker détecte automatiquement vos capacités :
 | Specs | Comportement |
 |-------|-------------|
 | **RAM < 4GB** | Features légères, pas de BirdNET |
-| **RAM 4-8GB** | Features standard, BirdNET basique |
-| **RAM 8-16GB** | Features complètes, BirdNET avancé |
+| **RAM 4-8GB** | Features standard, BirdNET basique, Gemma 4 Mini |
+| **RAM 8-16GB** | Features complètes, BirdNET avancé, Gemma 4 |
 | **RAM > 16GB** | Tout activé, qualité maximale |
-| **GPU détecté** | Accélération deep learning (CUDA) |
+| **GPU détecté** | Accélération deep learning (CUDA/MPS) |
 | **Mac M1/M2/M3** | Accélération MPS (Metal Performance Shaders) |
 
 ## Mise à jour automatique
