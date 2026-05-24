@@ -32,6 +32,7 @@ from infrastructure import (
     RetryableError,
     FatalError
 )
+from cluster_tasks import ClusterTaskManager, ClusterTask
 
 # Configuration du logging
 logging.basicConfig(
@@ -67,9 +68,11 @@ class ArborisisWorker:
         self.api = RobustAPIClient(self.api_url, self.token)
         self.stats = WorkerStats()
         self.health_server = HealthCheckServer(port=int(os.getenv('WORKER_PORT', 8080)))
+        self.cluster_manager = ClusterTaskManager(self.api)
         
         self.temp_dir = tempfile.mkdtemp(prefix="arborisis_worker_")
         self.active_jobs: Dict[int, JobContext] = {}
+        self.cluster_tasks: Dict[int, ClusterTask] = {}
         
         # Gestion des signaux
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -323,17 +326,32 @@ class ArborisisWorker:
         
         logger.info("Worker ready! Waiting for jobs...")
         
+        logger.info(f"Cluster capabilities: {json.dumps(self.cluster_manager.get_capabilities(), indent=2)}")
+        
         try:
             while self.running:
                 # Heartbeat
                 self.heartbeat_cycle()
                 
-                # Demander un nouveau job si capacité disponible
+                # Demander un nouveau job audio si capacité disponible
                 if len(self.active_jobs) < self.config['max_concurrent_jobs']:
                     self.request_job()
                 
-                # Traiter les jobs en attente
+                # Traiter les jobs audio en attente
                 self.process_pending_jobs()
+                
+                # Demander et traiter les tâches cluster IA
+                if not self.cluster_manager.current_task:
+                    cluster_task = self.cluster_manager.request_task()
+                    if cluster_task:
+                        # Exécuter la tâche cluster dans un thread séparé
+                        import threading
+                        thread = threading.Thread(
+                            target=self.cluster_manager.execute_task,
+                            args=(cluster_task,),
+                            daemon=True
+                        )
+                        thread.start()
                 
                 # Attendre avant le prochain cycle
                 time.sleep(30)
