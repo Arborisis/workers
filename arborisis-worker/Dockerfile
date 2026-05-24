@@ -13,7 +13,7 @@ ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 # Étape 1: Installation des dépendances système et GPU
 FROM base AS dependencies
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends --allow-change-held-packages \
     python3.11 \
     python3-pip \
     python3.11-dev \
