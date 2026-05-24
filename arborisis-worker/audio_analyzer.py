@@ -55,16 +55,16 @@ class AudioAnalyzer:
             if self.birdnet_config['enabled'] and metadata.get('duration_seconds', 0) >= 3.0:
                 birdnet_key, detections = self.run_birdnet(
                     local_path, sound_id, metadata,
-                    lat=parameters.get('lat'),
-                    lon=parameters.get('lon'),
-                    recorded_at=parameters.get('recorded_at')
+                    lat=parameters.get('lat') if parameters else None,
+                    lon=parameters.get('lon') if parameters else None,
+                    recorded_at=parameters.get('recorded_at') if parameters else None
                 )
                 if birdnet_key:
                     results['files']['birdnet'] = birdnet_key
                 results['detections'] = detections
             
             # 5. Génération preview MP3 (si demandé)
-            if parameters.get('generate_preview', True):
+            if parameters and parameters.get('generate_preview', True):
                 preview_path = self.generate_preview(local_path, sound_id)
                 if preview_path:
                     results['files']['preview'] = preview_path

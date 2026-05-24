@@ -181,7 +181,7 @@ class ArborisisWorker:
             assignment_id=assignment_id,
             analysis_id=job_data['analysis_id'],
             r2_key=job_data['r2_key'],
-            parameters=job_data.get('parameters', {}),
+            parameters=job_data.get('parameters') or {},
             status=JobStatus.PENDING
         )
         
@@ -225,6 +225,9 @@ class ArborisisWorker:
             # 2. Analyse audio
             logger.info(f"[{context.assignment_id}] Analyzing audio...")
             results = self.analyzer.analyze(local_path, context.analysis_id, context.parameters)
+            
+            if not results:
+                raise RetryableError("Analysis returned no results")
             
             if results.get('status') == 'failed':
                 raise Exception(results.get('error', 'Analysis failed'))
