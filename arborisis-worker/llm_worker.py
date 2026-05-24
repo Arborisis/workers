@@ -233,9 +233,9 @@ class LlmWorker:
             models_dir = os.getenv('MODELS_DIR', './models')
             
             model_paths = {
-                'sylve': os.path.join(models_dir, 'sylve.gguf'),
-                'sylve-mini': os.path.join(models_dir, 'sylve-mini.gguf'),
-                'sylve-gpu': os.path.join(models_dir, 'sylve.gguf'),
+                'gemma-4': os.path.join(models_dir, 'gemma-4.gguf'),
+                'gemma-4-mini': os.path.join(models_dir, 'gemma-4-mini.gguf'),
+                'gemma-4-gpu': os.path.join(models_dir, 'gemma-4.gguf'),
             }
             
             model_path = model_paths.get(model_slug)

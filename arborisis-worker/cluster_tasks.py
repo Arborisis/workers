@@ -41,15 +41,15 @@ class ClusterTaskManager:
         """Détecte les modèles IA disponibles sur cette machine."""
         models = {}
         
-        # Vérifier Sylve
-        sylve_path = os.getenv('SYLVE_MODEL_PATH', '/models/sylve')
-        if os.path.exists(sylve_path):
-            models['sylve'] = {
-                'path': sylve_path,
+        # Vérifier Gemma 4
+        gemma_path = os.getenv('GEMMA_MODEL_PATH', '/models/gemma-4')
+        if os.path.exists(gemma_path):
+            models['gemma-4'] = {
+                'path': gemma_path,
                 'type': 'local',
                 'gpu': False,
             }
-            logger.info(f"Sylve model detected at {sylve_path}")
+            logger.info(f"Gemma 4 model detected at {gemma_path}")
         
         # Vérifier GPU
         try:
@@ -57,10 +57,10 @@ class ClusterTaskManager:
             result = subprocess.run(['nvidia-smi'], capture_output=True)
             if result.returncode == 0:
                 models['gpu_available'] = True
-                # Si GPU dispo, Sylve GPU aussi
-                if 'sylve' in models:
-                    models['sylve-gpu'] = {
-                        'path': sylve_path,
+                # Si GPU dispo, Gemma 4 GPU aussi
+                if 'gemma-4' in models:
+                    models['gemma-4-gpu'] = {
+                        'path': gemma_path,
                         'type': 'local',
                         'gpu': True,
                     }
@@ -103,8 +103,10 @@ class ClusterTaskManager:
         try:
             logger.info(f"Executing cluster task {task.id} for model {task.model}")
             
-            if task.model == 'sylve' or task.model == 'sylve-gpu':
-                result = self._execute_sylve(task)
+            if task.model == 'gemma-4' or task.model == 'gemma-4-gpu':
+                result = self._execute_gemma(task)
+            elif task.model == 'gemma-4-mini':
+                result = self._execute_gemma(task)
             elif task.model == 'birdnet-cluster':
                 result = self._execute_birdnet_cluster(task)
             else:
@@ -137,8 +139,8 @@ class ClusterTaskManager:
         finally:
             self.current_task = None
     
-    def _execute_sylve(self, task: ClusterTask) -> Dict[str, Any]:
-        """Exécute une inférence avec le modèle Sylve."""
+    def _execute_gemma(self, task: ClusterTask) -> Dict[str, Any]:
+        """Exécute une inférence avec le modèle Gemma 4 (Assistant Sylve)."""
         import subprocess
         import tempfile
         
@@ -148,7 +150,7 @@ class ClusterTaskManager:
         temperature = payload.get('temperature', 0.7)
         
         # Utiliser llama.cpp ou autre backend
-        model_path = self.supported_models.get('sylve', {}).get('path', '/models/sylve')
+        model_path = self.supported_models.get('gemma-4', {}).get('path', '/models/gemma-4')
         
         # Créer un fichier temporaire pour le prompt
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
@@ -169,7 +171,7 @@ class ClusterTaskManager:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
             
             if result.returncode != 0:
-                raise Exception(f"Sylve inference failed: {result.stderr}")
+                raise Exception(f"Gemma 4 inference failed: {result.stderr}")
             
             # Parser le résultat JSON
             return json.loads(result.stdout)
@@ -233,7 +235,8 @@ class ClusterTaskManager:
         return {
             'models': list(self.supported_models.keys()),
             'gpu_available': self.supported_models.get('gpu_available', False),
-            'can_run_sylve': 'sylve' in self.supported_models,
-            'can_run_sylve_gpu': 'sylve-gpu' in self.supported_models,
+            'can_run_gemma_4': 'gemma-4' in self.supported_models,
+            'can_run_gemma_4_gpu': 'gemma-4-gpu' in self.supported_models,
+            'can_run_gemma_4_mini': 'gemma-4-mini' in self.supported_models,
             'can_run_birdnet_cluster': 'birdnet-cluster' in self.supported_models,
         }
