@@ -4,12 +4,14 @@ compatibility_date = "2026-05-10"
 account_id = "bc36459259b257fdbaf4252f06bcb690"
 
 [vars]
-# Fallback URL - Mettre à jour après migration des audio services
-# Utiliser wrangler secret put ANALYZER_URLS pour configurer l'URL finale
-ANALYZER_URL = "https://arborisis.com/analyzer"
+# Mode Bridge (recommandé) : dispatch vers Laravel qui gère les workers arborisis-worker
+# LARAVEL_API_URL = "https://arborisis.com"
+# LARAVEL_API_SECRET  →  wrangler secret put LARAVEL_API_SECRET (utiliser ANALYZER_INTERNAL_API_TOKEN de Laravel)
 
-# Exemple pour Railway/Render : https://audio-services-xxxxx.up.railway.app
-# Utiliser wrangler secret put ANALYZER_URLS avec l'URL définitive
+# Mode Legacy (fallback) : appelle directement les analyzers
+# ANALYZER_URL = "https://arborisis.com/analyzer"
+# ANALYZER_SECRET  →  wrangler secret put ANALYZER_SECRET
+# ANALYZER_URLS  →  wrangler secret put ANALYZER_URLS (URLs multiples séparées par virgule)
 
 [[queues.consumers]]
 queue = "audio-analysis-queue"

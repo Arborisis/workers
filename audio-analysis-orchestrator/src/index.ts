@@ -54,8 +54,41 @@ function shuffle<T>(array: T[]): T[] {
 }
 
 /**
+ * Dispatch l'analyse vers Laravel qui se charge de la distribuer
+ * aux workers audio enregistrés (arborisis-worker).
+ */
+async function dispatchToLaravel(
+  laravelUrl: string,
+  laravelSecret: string,
+  soundId: string,
+  objectKey: string,
+): Promise<{ ok: boolean; status: number; text: string }> {
+  const url = `${laravelUrl.replace(/\/$/, "")}/internal/audio-analysis/orchestrate`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${laravelSecret}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sound_id: soundId,
+        original_r2_key: objectKey,
+      }),
+    });
+
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, text };
+  } catch (err) {
+    console.error(`[Orchestrator] Failed to dispatch to Laravel: ${err}`);
+    return { ok: false, status: 0, text: String(err) };
+  }
+}
+
+/**
  * Appelle l'endpoint /analyze sur un des workers disponibles.
  * Distribue la charge aléatoirement et failover automatique en cas de 5xx / timeout.
+ * (Fallback legacy quand LARAVEL_API_URL n'est pas configuré)
  */
 async function callAnalyzer(
   urls: string[],
@@ -121,6 +154,46 @@ export default {
   },
 
   async queue(batch: MessageBatch<R2EventBody>, env: Env, ctx: ExecutionContext): Promise<void> {
+    // Mode Laravel Bridge : dispatch vers Laravel qui gère les workers arborisis-worker
+    if (env.LARAVEL_API_URL && env.LARAVEL_API_SECRET) {
+      for (const message of batch.messages) {
+        const body = message.body;
+        const objectKey = body.object?.key;
+
+        if (!objectKey || !objectKey.startsWith("sounds/original/")) {
+          message.ack();
+          continue;
+        }
+
+        if (!isAudioFile(objectKey)) {
+          message.ack();
+          continue;
+        }
+
+        const soundId = extractSoundId(objectKey);
+        if (!soundId) {
+          message.ack();
+          continue;
+        }
+
+        const result = await dispatchToLaravel(
+          env.LARAVEL_API_URL,
+          env.LARAVEL_API_SECRET,
+          soundId,
+          objectKey,
+        );
+
+        if (result.ok) {
+          message.ack();
+        } else {
+          console.error(`[Orchestrator] Laravel dispatch error ${result.status}: ${result.text}`);
+          message.retry();
+        }
+      }
+      return;
+    }
+
+    // Mode Legacy : appelle directement les analyzers via ANALYZER_URL(S)
     const analyzerUrls = getAnalyzerUrls(env);
 
     if (analyzerUrls.length === 0) {
