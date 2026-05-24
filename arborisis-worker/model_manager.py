@@ -360,6 +360,17 @@ class ModelManager:
             gpu_layers=0,
             description='Version légère de Gemma 4 (7B params) quantifié Q4_K_S'
         ),
+        'gemma-4-cpu-plus': ModelInfo(
+            name='Gemma 4 CPU+',
+            slug='gemma-4-cpu-plus',
+            url='https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf',
+            filename='gemma-4.gguf',
+            size_mb=4000,
+            required_ram_gb=16.0,
+            required_vram_gb=0.0,
+            gpu_layers=0,
+            description='Gemma 4 haute performance CPU (6+ cœurs, 16GB+ RAM)'
+        ),
         'gemma-4-gpu': ModelInfo(
             name='Gemma 4 GPU',
             slug='gemma-4-gpu',
@@ -467,6 +478,13 @@ class ModelManager:
         """Retourne les capacités du système en matière de modèles."""
         gpu_info = self.gpu_manager.detect_gpu()
         
+        # Vérifier les specs pour CPU+
+        import psutil
+        cpu_count = psutil.cpu_count(logical=True)
+        memory_gb = round(psutil.virtual_memory().total / (1024**3))
+        can_run_cpu_plus = (cpu_count >= 6 and memory_gb >= 16 and 
+                           self.is_model_ready('gemma-4'))
+        
         return {
             'gpu': gpu_info,
             'available_models': self.get_available_models(),
@@ -477,6 +495,9 @@ class ModelManager:
             'can_run_gemma_4': self.is_model_ready('gemma-4'),
             'can_run_gemma_4_gpu': self.is_model_ready('gemma-4') and gpu_info['has_nvidia'],
             'can_run_gemma_4_mini': self.is_model_ready('gemma-4-mini'),
+            'can_run_gemma_4_cpu_plus': can_run_cpu_plus,
+            'cpu_count': cpu_count,
+            'memory_gb': memory_gb,
         }
     
     def get_optimal_gpu_layers(self, slug: str) -> int:

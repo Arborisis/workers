@@ -46,6 +46,11 @@ class ClusterTaskManager:
         # Utiliser le ModelManager pour détecter les modèles
         model_capabilities = self.model_manager.get_capabilities()
         
+        # Détecter les specs système pour CPU+
+        import psutil
+        cpu_count = psutil.cpu_count(logical=True)
+        memory_gb = round(psutil.virtual_memory().total / (1024**3))
+        
         # Vérifier Gemma 4 via ModelManager
         if model_capabilities['can_run_gemma_4']:
             models['gemma-4'] = {
@@ -54,6 +59,22 @@ class ClusterTaskManager:
                 'gpu': False,
             }
             logger.info("Gemma 4 model detected via ModelManager")
+            
+            # CPU+ : machines avec 6+ CPU et 16GB+ RAM
+            if cpu_count >= 6 and memory_gb >= 16:
+                models['gemma-4-cpu-plus'] = {
+                    'path': str(self.model_manager.get_model_path('gemma-4')),
+                    'type': 'local',
+                    'gpu': False,
+                    'cpu_plus': True,
+                }
+                models['sylve-cpu-plus'] = {
+                    'path': str(self.model_manager.get_model_path('gemma-4')),
+                    'type': 'local',
+                    'gpu': False,
+                    'cpu_plus': True,
+                }
+                logger.info(f"CPU+ mode enabled: {cpu_count} cores, {memory_gb}GB RAM")
         
         if model_capabilities['can_run_gemma_4_mini']:
             models['gemma-4-mini'] = {
@@ -135,7 +156,7 @@ class ClusterTaskManager:
         try:
             logger.info(f"Executing cluster task {task.id} for model {task.model}")
             
-            if task.model == 'gemma-4' or task.model == 'gemma-4-gpu' or task.model == 'gemma-4-mps':
+            if task.model in ['gemma-4', 'gemma-4-gpu', 'gemma-4-mps', 'gemma-4-cpu-plus', 'sylve-cpu-plus']:
                 result = self._execute_gemma(task)
             elif task.model == 'gemma-4-mini':
                 result = self._execute_gemma(task)
@@ -280,9 +301,12 @@ class ClusterTaskManager:
             'models': list(self.supported_models.keys()),
             'gpu_available': self.supported_models.get('gpu_available', False),
             'mps_available': self.supported_models.get('mps_available', False),
+            'cpu_plus_available': 'gemma-4-cpu-plus' in self.supported_models,
             'can_run_gemma_4': 'gemma-4' in self.supported_models,
             'can_run_gemma_4_gpu': 'gemma-4-gpu' in self.supported_models,
             'can_run_gemma_4_mps': 'gemma-4-mps' in self.supported_models,
             'can_run_gemma_4_mini': 'gemma-4-mini' in self.supported_models,
+            'can_run_gemma_4_cpu_plus': 'gemma-4-cpu-plus' in self.supported_models,
+            'can_run_sylve_cpu_plus': 'sylve-cpu-plus' in self.supported_models,
             'can_run_birdnet_cluster': 'birdnet-cluster' in self.supported_models,
         }
