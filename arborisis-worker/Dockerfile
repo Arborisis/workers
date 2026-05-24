@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends --allow-change-
     python3.11 \
     python3-pip \
     python3.11-dev \
+    python3.11-venv \
     build-essential \
     cmake \
     git \
@@ -34,7 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends --allow-change-
     && rm -rf /var/lib/apt/lists/*
 
 # Mettre à jour pip
-RUN pip3 install --upgrade pip setuptools wheel
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
+    python3.11 -m ensurepip --upgrade && \
+    python3 -m pip install --upgrade pip setuptools wheel
 
 # Étape 2: Installation de llama-cpp-python avec support CUDA
 FROM dependencies AS llm-deps
@@ -44,7 +47,7 @@ ENV CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_FORCE_MMQ=ON"
 ENV FORCE_CMAKE=1
 
 # Installer les dépendances Python LLM
-RUN pip3 install --no-cache-dir \
+RUN python3 -m pip install --no-cache-dir \
     llama-cpp-python==0.2.90 \
     --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
 
@@ -55,13 +58,13 @@ WORKDIR /app
 
 # Copier et installer requirements audio
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir --prefer-binary -r requirements.txt
+RUN python3 -m pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # Étape 4: Installation de BirdNET-Analyzer
 FROM audio-deps AS birdnet-deps
 
 RUN git clone --depth 1 https://github.com/kahst/BirdNET-Analyzer.git /opt/birdnet && \
-    pip3 install --no-cache-dir --prefer-binary -e /opt/birdnet
+    python3 -m pip install --no-cache-dir --prefer-binary -e /opt/birdnet
 
 # Étape 5: Copie du code et téléchargement des modèles
 FROM birdnet-deps AS final
