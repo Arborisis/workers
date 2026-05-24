@@ -29,8 +29,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
-# Copier le code (forcer rebuild en invalidant le cache si les fichiers changent)
-COPY auto_updater.py ./
+# Copier tout le code Python (incluant auto_updater.py)
 COPY *.py ./
 
 # Créer le répertoire de travail
