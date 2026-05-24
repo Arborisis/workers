@@ -63,7 +63,7 @@ async function dispatchToLaravel(
   soundId: string,
   objectKey: string,
 ): Promise<{ ok: boolean; status: number; text: string }> {
-  const url = `${laravelUrl.replace(/\/$/, "")}/internal/audio-analysis/orchestrate`;
+  const url = `${laravelUrl.replace(/\/$/, "")}/audio-analysis/orchestrate`;
   try {
     const res = await fetch(url, {
       method: "POST",
