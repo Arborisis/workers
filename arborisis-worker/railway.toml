@@ -1,0 +1,18 @@
+[build]
+dockerfile = "Dockerfile.railway"
+
+[deploy]
+startCommand = "python3 worker.py"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[variables]
+WORKER_NAME = "railway-worker"
+API_URL = "https://arborisis.com"
+# WORKER_TOKEN = "à configurer dans Railway"
+# R2_ENDPOINT = "à configurer"
+# R2_ACCESS_KEY_ID = "à configurer"
+# R2_SECRET_ACCESS_KEY = "à configurer"
+# R2_BUCKET_NAME = "à configurer"
