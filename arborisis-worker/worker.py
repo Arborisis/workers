@@ -324,7 +324,7 @@ class ArborisisWorker:
         self.stats.record_failure(error)
     
     def process_pending_jobs(self) -> None:
-        """Traite les jobs en attente."""
+        """Traite les jobs en attente dans des threads séparés pour ne pas bloquer le heartbeat."""
         jobs_to_process = [
             ctx for ctx in self.active_jobs.values()
             if ctx.status in [JobStatus.PENDING, JobStatus.RETRYING]
@@ -334,7 +334,9 @@ class ArborisisWorker:
             if self.shutdown_requested:
                 break
             
-            self.process_job(context)
+            # Lancer le traitement dans un thread séparé pour ne pas bloquer le heartbeat
+            thread = threading.Thread(target=self.process_job, args=(context,), daemon=True)
+            thread.start()
             
             # Petite pause entre les jobs
             time.sleep(1)

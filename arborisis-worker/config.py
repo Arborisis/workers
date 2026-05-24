@@ -104,13 +104,13 @@ class AdaptiveConfig:
             'confidence_threshold': 0.3,
             'overlap': 1.5,
             'sensitivity': 1.25,
-            'timeout': 300 if capabilities.memory_gb >= 8 else 180
+            'timeout': 600 if capabilities.memory_gb >= 8 else 300
         }
         
-        # Sur les machines faibles, on augmente le threshold pour aller plus vite
+        # Sur les machines faibles, on optimise pour la vitesse
         if capabilities.memory_gb < 8:
             config['confidence_threshold'] = 0.5
-            config['overlap'] = 1.0
+            config['overlap'] = 0.5
             
         return config
     
