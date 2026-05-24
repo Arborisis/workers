@@ -36,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends --allow-change-
 
 # Mettre à jour pip
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
-    python3.11 -m ensurepip --upgrade && \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 && \
     python3 -m pip install --upgrade pip setuptools wheel
 
 # Étape 2: Installation de llama-cpp-python avec support CUDA
